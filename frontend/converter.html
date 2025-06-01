@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sign Language Converter - Webcam</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #f7f7f7;
+      padding: 20px;
+    }
+
+    #video-container {
+      margin: 20px auto;
+      width: 640px;
+      height: 480px;
+      border: 2px solid #333;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+    }
+
+    button {
+      font-size: 1.2em;
+      margin: 10px;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+    }
+
+    h2 {
+      margin-top: 30px;
+    }
+
+    #outputText {
+      font-size: 1.5em;
+      color: #28a745;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sign Language Converter - Webcam</h1>
+
+  <div id="video-container">
+    <video id="webcam" autoplay playsinline></video>
+  </div>
+
+  <div>
+    <button id="startBtn">Start</button>
+    <button id="stopBtn" disabled>Stop</button>
+  </div>
+
+  <h2>Live Prediction: <span id="prediction">--</span></h2>
+  <div id="outputText"></div>
+
+  <div style="margin-top: 20px;">
+  <button id="speakBtn" disabled>🔊 Speak</button>
+  <button id="downloadBtn" disabled>⬇️ Download .txt</button>
+</div>
+
+  <script>
+    const video = document.getElementById('webcam');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const predictionEl = document.getElementById('prediction');
+    const outputEl = document.getElementById('outputText');
+    const speakBtn = document.getElementById('speakBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let finalOutput = "";  // Store final text
+
+    let stream = null;
+    let sendingInterval = null;
+
+    async function startWebcam() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+      } catch (err) {
+        alert('Error accessing webcam: ' + err.message);
+      }
+    }
+
+    async function sendFrame(firstFrame = false) {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const dataUrl = canvas.toDataURL('image/jpeg');
+
+      try {
+        const res = await fetch('/api/predict/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: dataUrl, init: firstFrame })
+        });
+        const data = await res.json();
+        predictionEl.textContent = data.prediction || '--';
+      } catch (err) {
+        console.error('Error sending frame:', err);
+      }
+    }
+
+    function startSending() {
+      predictionEl.textContent = '--';
+      outputEl.textContent = '';
+
+      // First frame => triggers file reset
+      sendFrame(true);
+      sendingInterval = setInterval(() => sendFrame(false), 1000);
+
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+    }
+
+    function stopSending() {
+      clearInterval(sendingInterval);
+      sendingInterval = null;
+      stopBtn.disabled = true;
+      startBtn.disabled = false;
+
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+
+      fetch('/api/predict/get_output')
+    .then(res => res.json())
+    .then(data => {
+      finalOutput = data.output || '';
+      outputEl.textContent = 'Output: ' + finalOutput;
+      speakBtn.disabled = false;
+      downloadBtn.disabled = false;
+    })
+    .catch(err => {
+      outputEl.textContent = 'Error fetching output.';
+      console.error(err);
+    });
+    }
+
+    startBtn.addEventListener('click', async () => {
+      await startWebcam();
+      startSending();
+    });
+
+    stopBtn.addEventListener('click', stopSending);
+
+    speakBtn.addEventListener('click', () => {
+    if (finalOutput.trim()) {
+      const msg = new SpeechSynthesisUtterance(finalOutput);
+      msg.lang = 'en-US';
+      window.speechSynthesis.speak(msg);
+    }
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      const blob = new Blob([finalOutput], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'prediction.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>

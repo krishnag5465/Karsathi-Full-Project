@@ -1,0 +1,5 @@
+temp_audio/
+routes/__pycache__/
+utils/__pycache__/
+# Ignore Python cache files
+output.txt

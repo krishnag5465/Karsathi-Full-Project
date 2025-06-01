@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Text to Speech Converter | Karsathi</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #fbc2eb, #a6c1ee);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      padding: 20px;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+    }
+
+    select, textarea, button {
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 8px;
+      margin: 10px;
+      border: 1px solid #ccc;
+    }
+
+    textarea {
+      width: 300px;
+      height: 100px;
+      resize: none;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>🗣️ Text to Speech Converter</h2>
+
+  <textarea id="textInput" placeholder="Enter text here..."></textarea>
+
+  <select id="langSelect">
+    <option value="en">English</option>
+    <option value="hi">Hindi</option>
+    <option value="gu">Gujarati</option>
+  </select>
+
+  <button onclick="convertTextToSpeech()">Convert to Speech</button>
+
+  <audio id="audioPlayer" controls style="margin-top: 20px; display: none;"></audio>
+
+  <script>
+    async function convertTextToSpeech() {
+      const text = document.getElementById('textInput').value.trim();
+      const lang = document.getElementById('langSelect').value;
+
+      if (!text) {
+        alert("Please enter some text!");
+        return;
+      }
+
+      const response = await fetch('http://localhost:5000/api/convert/text-to-speech', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, lang })
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const audioUrl = URL.createObjectURL(blob);
+        const audioPlayer = document.getElementById('audioPlayer');
+        audioPlayer.src = audioUrl;
+        audioPlayer.style.display = 'block';
+        audioPlayer.play();
+      } else {
+        const error = await response.json();
+        alert("Error: " + error.error);
+      }
+    }
+  </script>
+</body>
+</html>
